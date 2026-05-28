@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Пользователи - Тестовое задание</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .table-row-clickable:hover {
+            background-color: #f0f0f0 !important;
+            transition: background-color 0.2s ease;
+        }
+
+        .skeleton-row td {
+            height: 48px;
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: skeleton-loading 1.5s infinite;
+        }
+        
+        @keyframes skeleton-loading {
+            0% {
+                background-position: 200% 0;
+            }
+            100% {
+                background-position: -200% 0;
+            }
+        }
+    
+        .table .skeleton-row td:first-child {
+            border-radius: 4px 0 0 4px;
+        }
+        .table .skeleton-row td:last-child {
+            border-radius: 0 4px 4px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Список пользователей</h1>
+        
+        <!-- Кнопка для открытия формы добавления -->
+        <button type="button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addUserModal">
+            Добавить пользователя
+        </button>
+        
+        <!-- Поле поиска -->
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <input type="text" id="searchInput" class="form-control" placeholder="Поиск по имени или email...">
+            </div>
+        </div>
+        
+        <!-- Таблица для отображения пользователей -->
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Имя</th>
+                    <th>Email</th>
+                </tr>
+            </thead>
+            <tbody id="usersTableBody">
+                <!-- Сюда будет загружаться список пользователей -->
+                <tr class="skeleton-row"><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+                <tr class="skeleton-row"><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+                <tr class="skeleton-row"><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Модальное окно для детальной информации -->
+    <div class="modal fade" id="userModal" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="userModalLabel">Детальная информация</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <p>Загрузка...</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для добавления пользователя -->
+    <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addUserModalLabel">Добавление нового пользователя</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addUserForm">
+                        <div class="mb-3">
+                            <label for="userNameInput" class="form-label">Имя *</label>
+                            <input type="text" class="form-control" id="userNameInput" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="userEmailInput" class="form-label">Email *</label>
+                            <input type="email" class="form-control" id="userEmailInput" required>
+                        </div>
+                        <div id="formMessage" class="alert" style="display: none;"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-success" id="saveUserBtn" style="min-width: 120px;">
+                        <span id="saveBtnText">Сохранить</span>
+                        <span id="saveBtnSpinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // URL нашего бэкенда
+        const API_URL = 'http://localhost:5000/users';
+        let allUsers = [];
+
+        // Функция отрисовки таблицы
+        function renderTable(users) {
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = '';
+            
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center">Ничего не найдено</td></tr>';
+                return;
+            }
+            
+            users.forEach(user => {
+                const row = tbody.insertRow();
+                row.style.cursor = 'pointer';
+                row.classList.add('table-row-clickable');
+                row.insertCell(0).textContent = user.id;
+                row.insertCell(1).textContent = user.name;
+                row.insertCell(2).textContent = user.email;
+                row.addEventListener('click', () => showUserDetails(user.id));
+            });
+        }
+
+        // Функция загрузки пользователей с бэкенда
+        async function loadUsers() {
+            const tbody = document.getElementById('usersTableBody');
+            
+            tbody.innerHTML = `
+                <tr class="skeleton-row"><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+                <tr class="skeleton-row"><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+                <tr class="skeleton-row"><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+            `;
+            
+            try {
+                const response = await fetch(API_URL);
+                
+                if (!response.ok) {
+                    throw new Error(`Ошибка HTTP: ${response.status}`);
+                }
+                
+                const users = await response.json();
+                allUsers = users;
+                renderTable(allUsers);
+                
+                console.log('Загружено пользователей:', users.length);
+                
+            } catch (error) {
+                console.error('Ошибка при загрузке:', error);
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">Ошибка загрузки: ${error.message}. Убедитесь, что бэкенд запущен на порту 5000</td></tr>`;
+            }
+        }
+        
+        // Функция показа детальной информации о пользователе
+        async function showUserDetails(userId) {
+            try {
+                const response = await fetch(`${API_URL}/${userId}`);
+                
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('Пользователь не найден');
+                    }
+                    throw new Error(`Ошибка HTTP: ${response.status}`);
+                }
+                
+                const user = await response.json();
+                
+                const modalBody = document.getElementById('modalBody');
+                modalBody.innerHTML = `
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted">ID: ${user.id}</h6>
+                            <h5 class="card-title">${user.name}</h5>
+                            <p class="card-text">
+                                <strong>Email:</strong> ${user.email}<br>
+                                <strong>Уникальный идентификатор:</strong> ${user.id}
+                            </p>
+                        </div>
+                    </div>
+                `;
+                
+                const modal = new bootstrap.Modal(document.getElementById('userModal'));
+                modal.show();
+                
+            } catch (error) {
+                console.error('Ошибка при загрузке деталей:', error);
+                alert(`Не удалось загрузить информацию о пользователе: ${error.message}`);
+            }
+        }
+        
+        // Функция добавления нового пользователя
+        async function addUser(name, email) {
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ name: name, email: email })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Ошибка при создании пользователя');
+                }
+                
+                return { success: true, message: data.message, user: data.user };
+            } catch (error) {
+                return { success: false, message: error.message };
+            }
+        }
+        
+        // Поиск с debounce
+        let searchTimeout;
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    const searchText = e.target.value.toLowerCase().trim();
+                    
+                    if (searchText === '') {
+                        renderTable(allUsers);
+                        return;
+                    }
+                    
+                    const filtered = allUsers.filter(user => 
+                        user.name.toLowerCase().includes(searchText) || 
+                        user.email.toLowerCase().includes(searchText)
+                    );
+                    renderTable(filtered);
+                }, 300);
+            });
+        }
+        
+        // Обработчик Enter в полях формы
+        const nameInputField = document.getElementById('userNameInput');
+        const emailInputField = document.getElementById('userEmailInput');
+        
+        if (nameInputField) {
+            nameInputField.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    emailInputField.focus();
+                }
+            });
+        }
+        
+        if (emailInputField) {
+            emailInputField.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('saveUserBtn').click();
+                }
+            });
+        }
+        
+        // Обработчик кнопки "Сохранить"
+        document.getElementById('saveUserBtn').addEventListener('click', async () => {
+            const nameInput = document.getElementById('userNameInput');
+            const emailInput = document.getElementById('userEmailInput');
+            const formMessage = document.getElementById('formMessage');
+            const saveBtn = document.getElementById('saveUserBtn');
+            const saveBtnText = document.getElementById('saveBtnText');
+            const saveBtnSpinner = document.getElementById('saveBtnSpinner');
+            
+            const name = nameInput.value.trim();
+            const email = emailInput.value.trim();
+            
+            formMessage.style.display = 'none';
+            
+            // Валидация полей
+            if (!name || !email) {
+                formMessage.className = 'alert alert-danger';
+                formMessage.textContent = 'Пожалуйста, заполните все поля';
+                formMessage.style.display = 'block';
+                return;
+            }
+            
+            // Валидация email на фронте
+            const emailRegex = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                formMessage.className = 'alert alert-danger';
+                formMessage.textContent = 'Некорректный формат email. Пример: user@example.com';
+                formMessage.style.display = 'block';
+                return;
+            }
+            
+            // Блокируем кнопку и показываем спиннер
+            saveBtn.disabled = true;
+            saveBtnText.textContent = 'Сохранение...';
+            saveBtnSpinner.style.display = 'inline-block';
+            
+            const result = await addUser(name, email);
+            
+            if (result.success) {
+                formMessage.className = 'alert alert-success';
+                formMessage.textContent = `${result.message}`;
+                formMessage.style.display = 'block';
+                
+                nameInput.value = '';
+                emailInput.value = '';
+                
+                setTimeout(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addUserModal'));
+                    modal.hide();
+                    formMessage.style.display = 'none';
+                    loadUsers();
+                }, 1000);
+            } else {
+                formMessage.className = 'alert alert-danger';
+                formMessage.textContent = `${result.message}`;
+                formMessage.style.display = 'block';
+            }
+            
+            // Разблокируем кнопку
+            saveBtn.disabled = false;
+            saveBtnText.textContent = 'Сохранить';
+            saveBtnSpinner.style.display = 'none';
+        });
+        
+        // Очищаем сообщение при открытии модалки
+        document.getElementById('addUserModal').addEventListener('show.bs.modal', function () {
+            document.getElementById('formMessage').style.display = 'none';
+            document.getElementById('userNameInput').value = '';
+            document.getElementById('userEmailInput').value = '';
+        });
+        
+        // Загружаем пользователей при загрузке страницы
+        loadUsers();
+    </script>
+</body>
+</html>
