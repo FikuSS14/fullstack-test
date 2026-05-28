@@ -94,7 +94,9 @@ python app.py
 ![Пустой результат поиска](screenshots/09_empty_search.png)
 
 Ответ API в браузере (JSON)
+
 ![API ответ JSON](screenshots/10_api_json_response.png)
 
 Ошибка 404 (пользователь не найден)
+
 ![404 Not Found](screenshots/11_404_error.png)
